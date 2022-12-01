@@ -1,10 +1,8 @@
+<!-- livebook:{"persist_outputs":true} -->
+
 # Day 01
 
-## Section
-
-```elixir
-
-```
+## Part 1
 
 --- Day 1: Calorie Counting ---
 
@@ -67,12 +65,26 @@ input =
 :ok
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
 <!-- livebook:{"reevaluate_automatically":true} -->
 
 ```elixir
 input
 |> Enum.max()
 ```
+
+<!-- livebook:{"output":true} -->
+
+```
+68775
+```
+
+## Part 2
 
 --- Part Two ---
 
@@ -91,4 +103,10 @@ input
 |> Enum.sort(:desc)
 |> Enum.take(3)
 |> Enum.sum()
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+202585
 ```
