@@ -50,7 +50,7 @@ Find the Elf carrying the most Calories. How many total Calories is that Elf car
 input =
   File.stream!("/Users/kwando/projects/AoC2022/01/input.txt")
   |> Stream.map(&String.trim/1)
-  |> Enum.chunk_while(
+  |> Stream.chunk_while(
     0,
     fn
       "", chunk ->
