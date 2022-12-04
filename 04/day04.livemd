@@ -52,10 +52,12 @@ In how many assignment pairs does one range fully contain the other?
 
 ```elixir
 parse_range = fn range ->
-  range
-  |> String.split("-", parts: 2)
-  |> Enum.map(&String.to_integer/1)
-  |> List.to_tuple()
+  [first, last] =
+    range
+    |> String.split("-", parts: 2)
+    |> Enum.map(&String.to_integer/1)
+
+  Range.new(first, last)
 end
 
 input =
@@ -71,14 +73,12 @@ input =
 ```
 
 ```elixir
-ranges_overlap? = fn
-  [{x1, y1}, {x2, y2}] ->
-    (x1 >= x2 && y1 <= y2) || (x2 >= x1 && y2 <= y1)
+subset? = fn
+  [r1 = x1..y1, r2 = x2..y2] -> (x1 in r2 && y1 in r2) || (x2 in r1 && y2 in r1)
 end
 
 input
-|> Stream.filter(ranges_overlap?)
-|> Enum.count()
+|> Enum.count(subset?)
 ```
 
 --- Part Two ---
@@ -96,13 +96,6 @@ So, in this example, the number of overlapping assignment pairs is 4.
 In how many assignment pairs do the ranges overlap?
 
 ```elixir
-defmodule OverlapChecker do
-  def overlap([r1, r2]), do: overlap(r1, r2)
-  defp overlap({x1, y1}, {x2, y2}) when x1 > x2, do: overlap({x2, y2}, {x1, y1})
-  defp overlap({_, y1}, {x2, _}), do: y1 >= x2
-end
-
 input
-|> Enum.filter(&OverlapChecker.overlap/1)
-|> Enum.count()
+|> Enum.count(fn [r1, r2] -> not Range.disjoint?(r1, r2) end)
 ```
