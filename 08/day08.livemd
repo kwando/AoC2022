@@ -1,0 +1,260 @@
+# Day 08
+
+## Part 1
+
+--- Day 8: Treetop Tree House ---
+
+The expedition comes across a peculiar patch of tall trees all planted carefully in a grid. The Elves explain that a previous expedition planted these trees as a reforestation effort. Now, they're curious if this would be a good location for a tree house.
+
+First, determine whether there is enough tree cover here to keep a tree house hidden. To do this, you need to count the number of trees that are visible from outside the grid when looking directly along a row or column.
+
+The Elves have already launched a quadcopter to generate a map with the height of each tree (your puzzle input). For example:
+
+```
+30373
+25512
+65332
+33549
+35390
+```
+
+Each tree is represented as a single digit whose value is its height, where 0 is the shortest and 9 is the tallest.
+
+A tree is visible if all of the other trees between it and an edge of the grid are shorter than it. Only consider trees in the same row or column; that is, only look up, down, left, or right from any given tree.
+
+All of the trees around the edge of the grid are visible - since they are already on the edge, there are no trees to block the view. In this example, that only leaves the interior nine trees to consider:
+
+The top-left 5 is visible from the left and top. (It isn't visible from the right or bottom since other trees of height 5 are in the way.)
+The top-middle 5 is visible from the top and right.
+The top-right 1 is not visible from any direction; for it to be visible, there would need to only be trees of height 0 between it and an edge.
+The left-middle 5 is visible, but only from the right.
+The center 3 is not visible from any direction; for it to be visible, there would need to be only trees of at most height 2 between it and an edge.
+The right-middle 3 is visible from the right.
+In the bottom row, the middle 5 is visible, but the 3 and 4 are not.
+With 16 trees visible on the edge and another 5 visible in the interior, a total of 21 trees are visible in this arrangement.
+
+Consider your map; how many trees are visible from outside the grid?
+
+```elixir
+path = Path.join(__DIR__, "input.txt")
+
+input =
+  path
+  |> File.stream!()
+  |> Enum.map(fn line ->
+    line
+    |> String.trim()
+    |> String.split("", trim: true)
+    |> Enum.map(&String.to_integer/1)
+  end)
+
+:ok
+```
+
+```elixir
+defmodule TreeCounter do
+  def count(grid) do
+    {rows, cols} = size(grid)
+
+    grid =
+      for {rows, y} <- Enum.with_index(grid) do
+        for {h, x} <- Enum.with_index(rows) do
+          {{x, y}, h}
+        end
+      end
+
+    visible_in_rows =
+      grid
+      |> Enum.drop(1)
+      |> Enum.with_index(1)
+      |> Enum.take(rows - 2)
+      |> Enum.reduce(MapSet.new(), fn {line, _}, set ->
+        collect_visible(Enum.reverse(line), collect_visible(line, set))
+      end)
+
+    grid
+    |> transpose()
+    |> Enum.drop(1)
+    |> Enum.with_index(1)
+    |> Enum.take(cols - 2)
+    |> Enum.reduce(visible_in_rows, fn {line, _}, set ->
+      collect_visible(Enum.reverse(line), collect_visible(line, set))
+    end)
+    |> MapSet.put({0, 0})
+    |> MapSet.put({cols - 1, 0})
+    |> MapSet.put({0, rows - 1})
+    |> MapSet.put({cols - 1, rows - 1})
+  end
+
+  def transpose(grid) do
+    for _ <- 0..10, reduce: {[], grid} do
+      {cols, grid} ->
+        {col, grid} = extract_col(grid)
+        {cols ++ [col], grid}
+    end
+
+    extract_cols(grid)
+  end
+
+  defp extract_cols([]), do: []
+
+  defp extract_cols(grid) do
+    {col, grid} = extract_col(grid)
+    [col | extract_cols(grid)]
+  end
+
+  defp extract_col(grid) do
+    for [h | rest] <- grid, reduce: {[], []} do
+      {dim, x} ->
+        {[h | dim], [rest | x]}
+    end
+  end
+
+  def collect_visible(line, set) do
+    collect_visible(line, -1, set)
+  end
+
+  def collect_visible([], _, set), do: set
+  def collect_visible(_, 9, set), do: set
+  def collect_visible([{_pos, x} | trees], x, set), do: collect_visible(trees, x, set)
+
+  def collect_visible([{pos, x} | trees], height, set) when x > height do
+    MapSet.put(set, pos)
+    collect_visible(trees, x, MapSet.put(set, pos))
+  end
+
+  def collect_visible([_ | trees], h, set), do: collect_visible(trees, h, set)
+
+  def size(grid) do
+    {Enum.count(grid), Enum.count(Enum.at(grid, 0))}
+  end
+
+  def count_line(line) do
+    count_line(line, 0)
+  end
+
+  def count_line([], _), do: 0
+  def count_line([x | trees], x), do: count_line(trees, x)
+
+  def count_line([x | trees], height) when x > height do
+    {x, height}
+    1 + count_line(trees, x)
+  end
+
+  def count_line(_, _), do: 0
+
+  def print_map(positions) do
+    rows = positions |> Enum.map(&elem(&1, 0)) |> Enum.max()
+    cols = positions |> Enum.map(&elem(&1, 1)) |> Enum.max()
+
+    for y <- 0..rows do
+      [
+        for x <- 0..cols do
+          if MapSet.member?(positions, {x, y}) do
+            ?X
+          else
+            ?\s
+          end
+        end,
+        ?\n
+      ]
+    end
+    |> IO.puts()
+  end
+end
+
+TreeCounter.count(input)
+|> Enum.count()
+```
+
+```
+30373
+25512
+65332
+33549
+35390
+```
+
+## Part 2
+
+--- Part Two ---
+
+Content with the amount of tree cover available, the Elves just need to know the best spot to build their tree house: they would like to be able to see a lot of trees.
+
+To measure the viewing distance from a given tree, look up, down, left, and right from that tree; stop if you reach an edge or at the first tree that is the same height or taller than the tree under consideration. (If a tree is right on the edge, at least one of its viewing distances will be zero.)
+
+The Elves don't care about distant trees taller than those found by the rules above; the proposed tree house has large eaves to keep it dry, so they wouldn't be able to see higher than the tree house anyway.
+
+In the example above, consider the middle 5 in the second row:
+
+30373
+25512
+65332
+33549
+35390
+Looking up, its view is not blocked; it can see 1 tree (of height 3).
+Looking left, its view is blocked immediately; it can see only 1 tree (of height 5, right next to it).
+Looking right, its view is not blocked; it can see 2 trees.
+Looking down, its view is blocked eventually; it can see 2 trees (one of height 3, then the tree of height 5 that blocks its view).
+A tree's scenic score is found by multiplying together its viewing distance in each of the four directions. For this tree, this is 4 (found by multiplying 1 * 1 * 2 * 2).
+
+However, you can do even better: consider the tree of height 5 in the middle of the fourth row:
+
+30373
+25512
+65332
+33549
+35390
+Looking up, its view is blocked at 2 trees (by another tree with a height of 5).
+Looking left, its view is not blocked; it can see 2 trees.
+Looking down, its view is also not blocked; it can see 1 tree.
+Looking right, its view is blocked at 2 trees (by a massive tree of height 9).
+This tree's scenic score is 8 (2 * 2 * 1 * 2); this is the ideal spot for the tree house.
+
+Consider each tree on your map. What is the highest scenic score possible for any tree?
+
+```elixir
+defmodule VisibilityChecker do
+  def max_visibility(grid) do
+    heights =
+      for {rows, y} <- Enum.with_index(grid), {h, x} <- Enum.with_index(rows), into: %{} do
+        {{x, y}, h}
+      end
+
+    heights
+    |> Stream.map(&elem(&1, 0))
+    |> Stream.map(&score(&1, heights))
+    |> Enum.max()
+  end
+
+  @directions [{-1, 0}, {1, 0}, {0, -1}, {0, 1}]
+  defp score(pos, heights) do
+    for dir <- @directions, reduce: 1 do
+      score -> score * visible(heights, pos, dir, heights[pos], 0)
+    end
+  end
+
+  defp visible(heights, pos, direction, max_height, line_height) do
+    new_pos = translate(pos, direction)
+
+    case heights[new_pos] do
+      nil ->
+        0
+
+      tree_height when tree_height >= max_height ->
+        1
+
+      tree_height when tree_height >= line_height ->
+        1 + visible(heights, new_pos, direction, max_height, tree_height)
+
+      _ ->
+        1 + visible(heights, new_pos, direction, max_height, line_height)
+    end
+  end
+
+  defp translate({x, y}, {dx, dy}), do: {x + dx, y + dy}
+end
+
+# 1470 is to low
+VisibilityChecker.max_visibility(input)
+```
