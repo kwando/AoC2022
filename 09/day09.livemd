@@ -1,5 +1,14 @@
 # Day 09
 
+```elixir
+Mix.install([
+  {:vega_lite, "~> 0.1.6"},
+  {:kino_vega_lite, "~> 0.1.7"}
+])
+
+alias VegaLite, as: Vl
+```
+
 ## Part 1
 
 --- Day 9: Rope Bridge ---
@@ -298,22 +307,23 @@ defmodule RopeSimulator do
     move(new_pos, {dir, n - 1}, [new_pos | trail])
   end
 
+  # overlap, do nothing
   def move_tail({x, y}, {x, y}), do: {x, y}
+  # on same row
   def move_tail({hx, y}, {tx, y}) when abs(hx - tx) == 1, do: {tx, y}
   def move_tail({hx, y}, {tx, y}) when hx > tx, do: {tx + 1, y}
   def move_tail({hx, y}, {tx, y}) when hx < tx, do: {tx - 1, y}
-
+  # on same column
   def move_tail({x, hy}, {x, ty}) when abs(hy - ty) == 1, do: {x, ty}
   def move_tail({x, hy}, {x, ty}) when hy > ty, do: {x, ty + 1}
   def move_tail({x, hy}, {x, ty}) when hy < ty, do: {x, ty - 1}
-
+  # somewhere diagonally => do nothing
   def move_tail({hx, hy}, {tx, ty}) when abs(hx - tx) + abs(hy - ty) == 2, do: {tx, ty}
 
+  # move tail closer diagonally
   def move_tail({hx, hy}, {tx, ty}) do
     {dx, dy} = {hx - tx, hy - ty}
-    tm = {round(dx / abs(dx)), round(dy / abs(dy))}
-
-    translate({tx, ty}, tm)
+    translate({tx, ty}, {round(dx / abs(dx)), round(dy / abs(dy))})
   end
 
   defp translate({x, y}, {dx, dy}), do: {x + dx, y + dy}
@@ -333,5 +343,3 @@ instructions
 |> Enum.uniq()
 |> Enum.count()
 ```
-
-## Part 2
