@@ -1,0 +1,426 @@
+# Day 09
+
+```elixir
+Mix.install([
+  {:vega_lite, "~> 0.1.6"},
+  {:kino_vega_lite, "~> 0.1.7"}
+])
+
+alias VegaLite, as: Vl
+```
+
+## Part 1
+
+--- Day 9: Rope Bridge ---
+
+This rope bridge creaks as you walk along it. You aren't sure how old it is, or whether it can even support your weight.
+
+It seems to support the Elves just fine, though. The bridge spans a gorge which was carved out by the massive river far below you.
+
+You step carefully; as you do, the ropes stretch and twist. You decide to distract yourself by modeling rope physics; maybe you can even figure out where not to step.
+
+Consider a rope with a knot at each end; these knots mark the head and the tail of the rope. If the head moves far enough away from the tail, the tail is pulled toward the head.
+
+Due to nebulous reasoning involving Planck lengths, you should be able to model the positions of the knots on a two-dimensional grid. Then, by following a hypothetical series of motions (your puzzle input) for the head, you can determine how the tail will move.
+
+Due to the aforementioned Planck lengths, the rope must be quite short; in fact, the head (H) and tail (T) must always be touching (diagonally adjacent and even overlapping both count as touching):
+
+```
+....
+.TH.
+....
+
+....
+.H..
+..T.
+....
+
+...
+.H. (H covers T)
+...
+```
+
+If the head is ever two steps directly up, down, left, or right from the tail, the tail must also move one step in that direction so it remains close enough:
+
+````
+.....    .....    .....
+.TH.. -> .T.H. -> ..TH.
+.....    .....    .....
+
+...    ...    ...
+.T.    .T.    ...
+.H. -> ... -> .T.
+...    .H.    .H.
+...    ...    ...
+```
+Otherwise, if the head and tail aren't touching and aren't in the same row or column, the tail always moves one step diagonally to keep up:
+```
+.....    .....    .....
+.....    ..H..    ..H..
+..H.. -> ..... -> ..T..
+.T...    .T...    .....
+.....    .....    .....
+
+.....    .....    .....
+.....    .....    .....
+..H.. -> ...H. -> ..TH.
+.T...    .T...    .....
+.....    .....    ....`
+You just need to work out where the tail goes as the head follows a series of motions. Assume the head and the tail both start at the same position, overlapping.
+
+For example:
+
+R 4
+U 4
+L 3
+D 1
+R 4
+D 1
+L 5
+R 2
+This series of motions moves the head right four steps, then up four steps, then left three steps, then down one step, and so on. After each step, you'll need to update the position of the tail if the step means the head is no longer adjacent to the tail. Visually, these motions occur as follows (s marks the starting position as a reference point):
+
+== Initial State ==
+
+......
+......
+......
+......
+H.....  (H covers T, s)
+
+== R 4 ==
+
+......
+......
+......
+......
+TH....  (T covers s)
+
+......
+......
+......
+......
+sTH...
+
+......
+......
+......
+......
+s.TH..
+
+......
+......
+......
+......
+s..TH.
+
+== U 4 ==
+
+......
+......
+......
+....H.
+s..T..
+
+......
+......
+....H.
+....T.
+s.....
+
+......
+....H.
+....T.
+......
+s.....
+
+....H.
+....T.
+......
+......
+s.....
+
+== L 3 ==
+
+...H..
+....T.
+......
+......
+s.....
+
+..HT..
+......
+......
+......
+s.....
+
+.HT...
+......
+......
+......
+s.....
+
+== D 1 ==
+
+..T...
+.H....
+......
+......
+s.....
+
+== R 4 ==
+
+..T...
+..H...
+......
+......
+s.....
+
+..T...
+...H..
+......
+......
+s.....
+
+......
+...TH.
+......
+......
+s.....
+
+......
+....TH
+......
+......
+s.....
+
+== D 1 ==
+
+......
+....T.
+.....H
+......
+s.....
+
+== L 5 ==
+
+......
+....T.
+....H.
+......
+s.....
+
+......
+....T.
+...H..
+......
+s.....
+
+......
+......
+..HT..
+......
+s.....
+
+......
+......
+.HT...
+......
+s.....
+
+......
+......
+HT....
+......
+s.....
+
+== R 2 ==
+
+......
+......
+.H....  (H covers T)
+......
+s.....
+
+......
+......
+.TH...
+......
+s.....
+After simulating the rope, you can count up all of the positions the tail visited at least once. In this diagram, s again marks the starting position (which the tail also visited) and # marks other positions the tail visited:
+
+..##..
+...##.
+.####.
+....#.
+s###..
+So, there are 13 positions the tail visited at least once.
+
+Simulate your complete hypothetical series of motions. How many positions does the tail of the rope visit at least once?
+````
+
+```elixir
+dir_map = %{
+  "R" => {1, 0},
+  "L" => {-1, 0},
+  "D" => {0, -1},
+  "U" => {0, 1}
+}
+
+instructions =
+  File.stream!(Path.join(__DIR__, "input.txt"))
+  |> Stream.map(&String.trim/1)
+  |> Stream.map(fn line ->
+    [dir, steps] =
+      line
+      |> String.trim()
+      |> String.split(" ", parts: 2)
+
+    {dir_map[dir], String.to_integer(steps)}
+  end)
+
+:ok
+```
+
+```elixir
+defmodule RopeSimulator do
+  def part1(instructions) do
+    for i <- instructions, reduce: {{0, 0}, {0, 0}, []} do
+      {head, tail, tail_positions} ->
+        print_map(head, tail, {5, 5})
+        move(head, tail, i, tail_positions)
+    end
+    |> elem(2)
+    |> IO.inspect(label: "tail positions")
+    |> Enum.uniq()
+    |> Enum.count()
+  end
+
+  def part2(instructions, knots \\ 0) do
+    {final_pos, trail} =
+      for i <- instructions, reduce: {{0, 0}, []} do
+        {pos, trail} ->
+          new_trail = move(pos, i)
+          new_pos = List.last(new_trail)
+          IO.inspect({pos, "->", new_pos, new_trail})
+          {new_pos, trail ++ new_trail}
+      end
+
+    trail
+
+    for _ <- 0..knots, reduce: trail do
+      trail -> Enum.scan(trail, {0, 0}, fn head, tail -> move_tail(head, tail) end)
+    end
+
+    # |> Enum.dedup(()
+    # |> Enum.count()
+
+    # |> Enum.dedup()
+  end
+
+  def render_trail(trail) do
+    data =
+      for {{x, y}, i} <- Enum.with_index(trail, 1) do
+        %{"x" => y, "y" => x, "index" => i}
+      end
+
+    chart =
+      Vl.new(width: 800, height: 600)
+      |> Vl.data_from_values(data)
+      |> Vl.mark(:circle, tooltip: true)
+      |> Vl.encode_field(:x, "x", scale: [domain: [0, 5]], type: :quantitative)
+      |> Vl.encode_field(:y, "y", scale: [domain: [0, 5]], type: :quantitative)
+      |> Kino.VegaLite.new()
+      |> Kino.render()
+
+    :ok
+
+    # for {{x, y}, i} <- Enum.with_index(trail, 1) do
+    #  Kino.VegaLite.push(chart, %{"x" => x, "y" => y, "index" => i})
+    #  Process.sleep(1000)
+    # end
+    :ok
+  end
+
+  def move({x, y}, {dir, 0}), do: [{x, y}]
+
+  def move(pos, {dir, n}) do
+    new_pos = translate(pos, dir)
+    [new_pos | move(new_pos, {dir, n - 1})]
+  end
+
+  def print_map({hx, hy}, {tx, ty}, {bx, by}) do
+    for y <- -by..by do
+      [
+        for x <- -bx..bx do
+          cond do
+            {x, y} == {hx, hy} -> ?H
+            {x, y} == {tx, ty} -> ?T
+            {x, y} == {0, 0} -> ?s
+            true -> ?.
+          end
+        end,
+        ?\n
+      ]
+    end
+    |> IO.puts()
+  end
+
+  def move(s, e, {dir, 0}, tail_positions) do
+    {s, e, Enum.reverse(tail_positions)}
+  end
+
+  def move(s, e, {dir, n}, tail_positions) do
+    moved_head = translate(s, dir)
+    moved_tail = move_tail(moved_head, e)
+    move(moved_head, moved_tail, {dir, n - 1}, [moved_tail | tail_positions])
+  end
+
+  def move_tail({x, y}, {x, y}), do: {x, y}
+  def move_tail({hx, y}, {tx, y}) when abs(hx - tx) == 1, do: {tx, y}
+  def move_tail({hx, y}, {tx, y}) when hx > tx, do: {tx + 1, y}
+  def move_tail({hx, y}, {tx, y}) when hx < tx, do: {tx - 1, y}
+
+  def move_tail({x, hy}, {x, ty}) when abs(hy - ty) == 1, do: {x, ty}
+  def move_tail({x, hy}, {x, ty}) when hy > ty, do: {x, ty + 1}
+  def move_tail({x, hy}, {x, ty}) when hy < ty, do: {x, ty - 1}
+
+  def move_tail({hx, hy}, {tx, ty}) when abs(hx - tx) + abs(hy - ty) == 2, do: {tx, ty}
+
+  def move_tail({hx, hy}, {tx, ty}) do
+    diff = {dx, dy} = {hx - tx, hy - ty}
+    tm = {round(dx / abs(dx)), round(dy / abs(dy))}
+
+    translate({tx, ty}, tm)
+  end
+
+  def distance({x1, y1}, {x2, y2}), do: abs(x1 - x2) + abs(y1 - y2)
+  defp translate({x, y}, {dx, dy}), do: {x + dx, y + dy}
+  defp scale({x, y}, s), do: {s * x, s * y}
+end
+```
+
+```elixir
+instructions
+|> RopeSimulator.part2(8)
+|> Enum.uniq()
+|> Enum.count()
+
+# |> RopeSimulator.render_trail()
+```
+
+```elixir
+# ......
+# ..T...
+# ...H..
+# ......
+# ......
+
+# ......
+# ..T...
+# ...H..
+# ......
+# ......
+```
+
+## Part 2
