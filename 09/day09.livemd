@@ -284,96 +284,25 @@ instructions =
 
 ```elixir
 defmodule RopeSimulator do
-  def part1(instructions) do
-    for i <- instructions, reduce: {{0, 0}, {0, 0}, []} do
-      {head, tail, tail_positions} ->
-        print_map(head, tail, {5, 5})
-        move(head, tail, i, tail_positions)
-    end
-    |> elem(2)
-    |> IO.inspect(label: "tail positions")
-    |> Enum.uniq()
-    |> Enum.count()
-  end
-
-  def part2(instructions, knots \\ 0) do
-    {final_pos, trail} =
+  def simulate(instructions, knots \\ 2) do
+    {_final_pos, trail} =
       for i <- instructions, reduce: {{0, 0}, []} do
         {pos, trail} ->
           new_trail = move(pos, i)
           new_pos = List.last(new_trail)
-          IO.inspect({pos, "->", new_pos, new_trail})
           {new_pos, trail ++ new_trail}
       end
 
-    trail
-
-    for _ <- 0..knots, reduce: trail do
+    for _ <- 2..knots, reduce: trail do
       trail -> Enum.scan(trail, {0, 0}, fn head, tail -> move_tail(head, tail) end)
     end
-
-    # |> Enum.dedup(()
-    # |> Enum.count()
-
-    # |> Enum.dedup()
   end
 
-  def render_trail(trail) do
-    data =
-      for {{x, y}, i} <- Enum.with_index(trail, 1) do
-        %{"x" => y, "y" => x, "index" => i}
-      end
-
-    chart =
-      Vl.new(width: 800, height: 600)
-      |> Vl.data_from_values(data)
-      |> Vl.mark(:circle, tooltip: true)
-      |> Vl.encode_field(:x, "x", scale: [domain: [0, 5]], type: :quantitative)
-      |> Vl.encode_field(:y, "y", scale: [domain: [0, 5]], type: :quantitative)
-      |> Kino.VegaLite.new()
-      |> Kino.render()
-
-    :ok
-
-    # for {{x, y}, i} <- Enum.with_index(trail, 1) do
-    #  Kino.VegaLite.push(chart, %{"x" => x, "y" => y, "index" => i})
-    #  Process.sleep(1000)
-    # end
-    :ok
-  end
-
-  def move({x, y}, {dir, 0}), do: [{x, y}]
+  def move({x, y}, {_dir, 0}), do: [{x, y}]
 
   def move(pos, {dir, n}) do
     new_pos = translate(pos, dir)
     [new_pos | move(new_pos, {dir, n - 1})]
-  end
-
-  def print_map({hx, hy}, {tx, ty}, {bx, by}) do
-    for y <- -by..by do
-      [
-        for x <- -bx..bx do
-          cond do
-            {x, y} == {hx, hy} -> ?H
-            {x, y} == {tx, ty} -> ?T
-            {x, y} == {0, 0} -> ?s
-            true -> ?.
-          end
-        end,
-        ?\n
-      ]
-    end
-    |> IO.puts()
-  end
-
-  def move(s, e, {dir, 0}, tail_positions) do
-    {s, e, Enum.reverse(tail_positions)}
-  end
-
-  def move(s, e, {dir, n}, tail_positions) do
-    moved_head = translate(s, dir)
-    moved_tail = move_tail(moved_head, e)
-    move(moved_head, moved_tail, {dir, n - 1}, [moved_tail | tail_positions])
   end
 
   def move_tail({x, y}, {x, y}), do: {x, y}
@@ -388,39 +317,28 @@ defmodule RopeSimulator do
   def move_tail({hx, hy}, {tx, ty}) when abs(hx - tx) + abs(hy - ty) == 2, do: {tx, ty}
 
   def move_tail({hx, hy}, {tx, ty}) do
-    diff = {dx, dy} = {hx - tx, hy - ty}
+    {dx, dy} = {hx - tx, hy - ty}
     tm = {round(dx / abs(dx)), round(dy / abs(dy))}
 
     translate({tx, ty}, tm)
   end
 
-  def distance({x1, y1}, {x2, y2}), do: abs(x1 - x2) + abs(y1 - y2)
   defp translate({x, y}, {dx, dy}), do: {x + dx, y + dy}
-  defp scale({x, y}, s), do: {s * x, s * y}
 end
 ```
 
 ```elixir
 instructions
-|> RopeSimulator.part2(8)
+|> RopeSimulator.simulate(2)
 |> Enum.uniq()
 |> Enum.count()
-
-# |> RopeSimulator.render_trail()
 ```
 
 ```elixir
-# ......
-# ..T...
-# ...H..
-# ......
-# ......
-
-# ......
-# ..T...
-# ...H..
-# ......
-# ......
+instructions
+|> RopeSimulator.simulate(10)
+|> Enum.uniq()
+|> Enum.count()
 ```
 
 ## Part 2
