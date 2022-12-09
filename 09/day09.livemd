@@ -288,21 +288,23 @@ defmodule RopeSimulator do
     {_final_pos, trail} =
       for i <- instructions, reduce: {{0, 0}, []} do
         {pos, trail} ->
-          new_trail = move(pos, i)
-          new_pos = List.last(new_trail)
-          {new_pos, trail ++ new_trail}
+          new_trail = move(pos, i, [])
+          new_pos = hd(new_trail)
+          {new_pos, new_trail ++ trail}
       end
+
+    trail = Enum.reverse(trail)
 
     for _ <- 2..knots, reduce: trail do
       trail -> Enum.scan(trail, {0, 0}, fn head, tail -> move_tail(head, tail) end)
     end
   end
 
-  def move({x, y}, {_dir, 0}), do: [{x, y}]
+  def move({x, y}, {_dir, 0}, trail), do: [{x, y} | trail]
 
-  def move(pos, {dir, n}) do
+  def move(pos, {dir, n}, trail) do
     new_pos = translate(pos, dir)
-    [new_pos | move(new_pos, {dir, n - 1})]
+    move(new_pos, {dir, n - 1}, [new_pos | trail])
   end
 
   def move_tail({x, y}, {x, y}), do: {x, y}
