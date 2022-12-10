@@ -1,0 +1,51 @@
+# Day 10
+
+## Part 1
+
+```elixir
+input =
+  File.stream!(Path.join(__DIR__, "input.txt"))
+  |> Enum.map(fn line ->
+    case String.trim(line) do
+      "noop" -> :noop
+      "addx " <> value -> {:addx, String.to_integer(value)}
+    end
+  end)
+```
+
+```elixir
+register_stream = fn input ->
+  input
+  |> Stream.transform({1, 1}, fn
+    :noop, {cycle, x} ->
+      {[{cycle, x}], {cycle + 1, x}}
+
+    {:addx, value}, {cycle, x} ->
+      {[{cycle, x}, {cycle + 1, x}], {cycle + 2, x + value}}
+  end)
+end
+
+input
+|> register_stream.()
+# part 1
+|> Stream.drop(19)
+|> Stream.take_every(40)
+|> Enum.reduce(0, fn {cycle, x}, sum -> sum + cycle * x end)
+```
+
+## Part 2
+
+```elixir
+input
+|> register_stream.()
+# part 2
+|> Stream.map(fn
+  {pc, x} when rem(pc - 1, 40) in (x - 1)..(x + 1) -> ?#
+  _ -> ?\s
+end)
+|> Stream.chunk_every(40)
+# add whitepace between every pixel in X so it is easier to read
+|> Stream.map(&Enum.intersperse(&1, ?\s))
+|> Enum.intersperse(?\n)
+|> IO.puts()
+```
