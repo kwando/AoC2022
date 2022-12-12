@@ -49,11 +49,16 @@ defmodule HillClimber do
       |> Map.put(goal_pos, ?z)
       |> Map.put(start_pos, ?a)
 
-    {goal_pos, start_pos, map}
+    edges =
+      for {pos, _} <- map, into: %{} do
+        {pos, options(pos, map)}
+      end
+
+    {goal_pos, start_pos, edges}
   end
 
   @vectors [{-1, 0}, {1, 0}, {0, -1}, {0, 1}]
-  def options(pos, map) do
+  defp options(pos, map) do
     current_height = map[pos]
 
     for delta <- @vectors,
@@ -63,24 +68,8 @@ defmodule HillClimber do
     end
   end
 
-  def distance({x1, y1}, {x2, y2}), do: abs(x1 - x2) + abs(y1 - y2)
   def translate({x, y}, {dx, dy}), do: {x + dx, y + dy}
-end
-```
 
-<!-- livebook:{"reevaluate_automatically":true} -->
-
-```elixir
-{goal, start, map} = HillClimber.prepare_map(input)
-
-options =
-  for {pos, _} <- map, into: %{} do
-    {pos, HillClimber.options(pos, map)}
-  end
-```
-
-```elixir
-defmodule HillClimber2 do
   def find_path(start, goal, map) do
     distances(start, map)[goal]
   end
@@ -92,7 +81,7 @@ defmodule HillClimber2 do
     {:done, distances} -> distances
   end
 
-  def find_path(pos, map, visited, distances) do
+  defp find_path(pos, map, visited, distances) do
     options =
       map[pos]
       |> Enum.reject(&MapSet.member?(visited, &1))
@@ -130,26 +119,35 @@ defmodule HillClimber2 do
         find_path(next_node, map, visited, distances)
     end
   end
-end
 
-HillClimber2.find_path(start, goal, options)
-```
-
-```elixir
-defmodule P2 do
-  def invert_options(options) do
-    options
-    |> Stream.flat_map(fn {key, options} ->
-      for option <- options do
+  def reverse_edges(edges) do
+    edges
+    |> Stream.flat_map(fn {key, edges} ->
+      for option <- edges do
         {option, key}
       end
     end)
     |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
   end
 end
+```
 
-distances = HillClimber2.distances(goal, P2.invert_options(options))
+<!-- livebook:{"reevaluate_automatically":true} -->
+
+```elixir
+{goal, start, edges} = HillClimber.prepare_map(input)
+```
+
+```elixir
+distances = HillClimber.distances(goal, HillClimber.reverse_edges(edges))
 :ok
+```
+
+<!-- livebook:{"reevaluate_automatically":true} -->
+
+```elixir
+distances[start]
+|> IO.inspect(label: "part 1")
 ```
 
 <!-- livebook:{"reevaluate_automatically":true} -->
@@ -159,4 +157,5 @@ input
 |> Enum.filter(fn {_, v} -> v == ?a end)
 |> Enum.map(&distances[elem(&1, 0)])
 |> Enum.min()
+|> IO.inspect(label: "part 2")
 ```
