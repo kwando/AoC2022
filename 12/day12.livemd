@@ -1,0 +1,162 @@
+# Day 12
+
+```elixir
+Mix.install([:priority_queue, {:vega_lite, "~> 0.1.6"}, {:kino_vega_lite, "~> 0.1.7"}])
+alias VegaLite, as: Vl
+```
+
+## Part 1
+
+```elixir
+input =
+  Path.join(__DIR__, "input.txt")
+  |> File.stream!()
+  |> Stream.map(fn line ->
+    line
+    |> String.trim()
+    |> to_charlist()
+    |> Enum.with_index()
+  end)
+  |> Stream.with_index()
+  |> Stream.flat_map(fn {row, y} -> for {height, x} <- row, do: {{x, y}, height} end)
+  |> Map.new()
+
+:ok
+```
+
+<!-- livebook:{"reevaluate_automatically":true} -->
+
+```elixir
+Vl.new(width: 800, height: 200)
+|> Vl.data_from_values(
+  input
+  |> Enum.map(fn {{x, y}, h} -> %{"x" => x, "y" => y, "h" => ?z - h} end)
+)
+|> Vl.mark(:rect)
+|> Vl.encode_field(:x, "x", type: :nominal)
+|> Vl.encode_field(:y, "y", type: :nominal)
+|> Vl.encode(:color, field: "h", type: :quantitative)
+```
+
+```elixir
+defmodule HillClimber do
+  def prepare_map(input) do
+    {goal_pos, ?E} = Enum.find(input, fn {_, h} -> h == ?E end)
+    {start_pos, ?S} = Enum.find(input, fn {_, h} -> h == ?S end)
+
+    map =
+      input
+      |> Map.put(goal_pos, ?z)
+      |> Map.put(start_pos, ?a)
+
+    {goal_pos, start_pos, map}
+  end
+
+  @vectors [{-1, 0}, {1, 0}, {0, -1}, {0, 1}]
+  def options(pos, map) do
+    current_height = map[pos]
+
+    for delta <- @vectors,
+        option = translate(pos, delta),
+        map[option] <= current_height + 1 do
+      option
+    end
+  end
+
+  def distance({x1, y1}, {x2, y2}), do: abs(x1 - x2) + abs(y1 - y2)
+  def translate({x, y}, {dx, dy}), do: {x + dx, y + dy}
+end
+```
+
+<!-- livebook:{"reevaluate_automatically":true} -->
+
+```elixir
+{goal, start, map} = HillClimber.prepare_map(input)
+
+options =
+  for {pos, _} <- map, into: %{} do
+    {pos, HillClimber.options(pos, map)}
+  end
+```
+
+```elixir
+defmodule HillClimber2 do
+  def find_path(start, goal, map) do
+    distances(start, map)[goal]
+  end
+
+  def distances(start, map) do
+    distances = Map.new(Map.keys(map) |> Enum.map(&{&1, :infinity}))
+    find_path(start, map, MapSet.new(), distances |> Map.put(start, 0))
+  catch
+    {:done, distances} -> distances
+  end
+
+  def find_path(pos, map, visited, distances) do
+    options =
+      map[pos]
+      |> Enum.reject(&MapSet.member?(visited, &1))
+
+    current_distance = Map.fetch!(distances, pos)
+
+    distances =
+      for option <- options, reduce: distances do
+        distances ->
+          case Map.get(distances, option, :infinity) do
+            :infinity ->
+              Map.put(distances, option, current_distance + 1)
+
+            value when value < current_distance + 1 ->
+              Map.put(distances, option, current_distance + 1)
+
+            _ ->
+              distances
+          end
+      end
+
+    visited = MapSet.put(visited, pos)
+
+    unvisited = Enum.reject(distances, fn {key, _} -> MapSet.member?(visited, key) end)
+
+    if unvisited == [] do
+      throw({:done, distances})
+    end
+
+    case Enum.min_by(unvisited, &elem(&1, 1)) do
+      {_, :infinity} ->
+        throw({:done, distances})
+
+      {next_node, _} ->
+        find_path(next_node, map, visited, distances)
+    end
+  end
+end
+
+HillClimber2.find_path(start, goal, options)
+```
+
+```elixir
+defmodule P2 do
+  def invert_options(options) do
+    options
+    |> Stream.flat_map(fn {key, options} ->
+      for option <- options do
+        {option, key}
+      end
+    end)
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+  end
+end
+
+distances = HillClimber2.distances(goal, P2.invert_options(options))
+:ok
+```
+
+<!-- livebook:{"reevaluate_automatically":true} -->
+
+```elixir
+input
+|> Enum.filter(fn {_, v} -> v == ?a end)
+|> Enum.map(&distances[elem(&1, 0)])
+|> Enum.min()
+```
