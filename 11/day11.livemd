@@ -1,4 +1,4 @@
-# Day 11
+# Day 11 - Monkey Business
 
 ## Part 1
 
@@ -60,26 +60,27 @@ defmodule Monkey do
   defp parse_operation("+"), do: :add
 end
 
-monkeys =
-  for data <- input, into: %{} do
-    monkey = Monkey.parse(data)
-    {monkey.id, monkey}
-  end
+monkeys = Enum.map(input, &Monkey.parse/1)
+:ok
 ```
 
 ```elixir
 defmodule MonkeyBusiness do
-  def rounds(monkeys, n) do
+  def rounds(monkeys, items, n) do
     factor = compute_factor(monkeys)
 
-    for _ <- 1..n, reduce: monkeys do
-      monkeys ->
-        run_round(monkeys, factor)
+    for _ <- 1..n, reduce: items do
+      items ->
+        run_round(monkeys, items, factor)
     end
   end
 
   def monkey_business_level(monkeys, n) do
-    rounds(monkeys, n)
+    items =
+      Map.new(monkeys |> Enum.map(&{&1.id, &1.items}))
+      |> IO.inspect()
+
+    rounds(monkeys, items, n)
     |> Map.values()
     |> get_in([Access.all(), Access.key!(:inspections)])
     |> Enum.sort(:desc)
@@ -89,13 +90,12 @@ defmodule MonkeyBusiness do
 
   defp compute_factor(monkeys) do
     monkeys
-    |> Map.values()
     |> get_in([Access.all(), Access.key!(:factor)])
     |> Enum.reduce(&(&1 * &2))
   end
 
-  def run_round(monkeys, factor) do
-    for n <- 0..(map_size(monkeys) - 1), reduce: monkeys do
+  def run_round(monkeys, items, factor) do
+    for n <- 0..(map_size(monkeys) - 1), reduce: items do
       monkeys ->
         monkey = monkeys[n]
 
