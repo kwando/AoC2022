@@ -7,12 +7,14 @@ input =
   Path.join(__DIR__, "input.txt")
   |> File.stream!()
   |> Stream.map(&String.trim/1)
-  |> Enum.chunk_every(7)
+  |> Stream.chunk_every(7)
+
+:ok
 ```
 
 ```elixir
 defmodule Monkey do
-  defstruct [:id, :items, :operation, :test, :when_true, :when_false, inspections: 0]
+  defstruct [:id, :items, :operation, :when_true, :when_false, inspections: 0, factor: 0]
 
   def parse(lines) do
     for line <- lines, reduce: %__MODULE__{} do
@@ -39,7 +41,7 @@ defmodule Monkey do
 
   defp parse(monkey, "Test: divisible by " <> number) do
     factor = String.to_integer(number)
-    %{monkey | test: &(rem(&1, factor) == 0)}
+    %{monkey | factor: factor}
   end
 
   defp parse(monkey, "If true: throw to monkey " <> number) do
@@ -68,39 +70,47 @@ monkeys =
 ```elixir
 defmodule MonkeyBusiness do
   def rounds(monkeys, n) do
+    factor = compute_factor(monkeys)
+
     for _ <- 1..n, reduce: monkeys do
       monkeys ->
-        run_round(monkeys)
-        |> tap(&print(&1))
+        run_round(monkeys, factor)
     end
   end
 
-  def print(monkeys) do
-    for n <- 0..(map_size(monkeys) - 1) do
-      monkey = monkeys[n]
-      [to_string(monkey.id), ": ", monkey.items |> Enum.map(&to_string/1) |> Enum.join(", "), ?\n]
-    end
-    |> IO.puts()
+  def monkey_business_level(monkeys, n) do
+    rounds(monkeys, n)
+    |> Map.values()
+    |> get_in([Access.all(), Access.key!(:inspections)])
+    |> Enum.sort(:desc)
+    |> Enum.take(2)
+    |> Enum.reduce(&(&1 * &2))
   end
 
-  def run_round(monkeys) do
+  defp compute_factor(monkeys) do
+    monkeys
+    |> Map.values()
+    |> get_in([Access.all(), Access.key!(:factor)])
+    |> Enum.reduce(&(&1 * &2))
+  end
+
+  def run_round(monkeys, factor) do
     for n <- 0..(map_size(monkeys) - 1), reduce: monkeys do
       monkeys ->
         monkey = monkeys[n]
-        # IO.inspect(monkey.items, label: "Monkey #{monkey.id}")
+
         for item <- Enum.reverse(monkey.items), reduce: monkeys do
           monkeys ->
             wl = operate(monkey.operation, item)
-            new_wl = floor(wl / 3)
+            new_wl = rem(wl, factor)
 
             next_monkey =
-              if monkey.test.(new_wl) do
+              if rem(new_wl, monkey.factor) == 0 do
                 monkey.when_true
               else
                 monkey.when_false
               end
 
-            # IO.inspect({monkey.id, item, wl, new_wl, next_monkey})
             monkeys
             |> get_and_update_in([next_monkey, Access.key!(:items)], &{&1, [new_wl | &1]})
             |> elem(1)
@@ -120,16 +130,5 @@ defmodule MonkeyBusiness do
   defp operand(number, _) when is_integer(number), do: number
 end
 
-MonkeyBusiness.rounds(monkeys, 20)
-|> Map.values()
-|> get_in([Access.all(), Access.key!(:inspections)])
-|> Enum.sort(:desc)
-|> Enum.take(2)
-|> Enum.reduce(&(&1 * &2))
-```
-
-## Part 2
-
-```elixir
-rem(2080, 13) === 0
+MonkeyBusiness.monkey_business_level(monkeys, 10000)
 ```
