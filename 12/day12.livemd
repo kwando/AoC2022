@@ -51,14 +51,14 @@ defmodule HillClimber do
 
     edges =
       for {pos, _} <- map, into: %{} do
-        {pos, options(pos, map)}
+        {pos, valid_edges(pos, map)}
       end
 
     {goal_pos, start_pos, edges}
   end
 
   @vectors [{-1, 0}, {1, 0}, {0, -1}, {0, 1}]
-  defp options(pos, map) do
+  defp valid_edges(pos, map) do
     current_height = map[pos]
 
     for delta <- @vectors,
@@ -68,22 +68,17 @@ defmodule HillClimber do
     end
   end
 
-  def translate({x, y}, {dx, dy}), do: {x + dx, y + dy}
+  defp translate({x, y}, {dx, dy}), do: {x + dx, y + dy}
 
-  def find_path(start, goal, map) do
-    distances(start, map)[goal]
-  end
-
-  def distances(start, map) do
-    distances = Map.new(Map.keys(map) |> Enum.map(&{&1, :infinity}))
-    find_path(start, map, MapSet.new(), distances |> Map.put(start, 0))
+  def distances(start, edges) do
+    find_path(start, edges, MapSet.new(), Map.new([{start, 0}]))
   catch
     {:done, distances} -> distances
   end
 
-  defp find_path(pos, map, visited, distances) do
+  defp find_path(pos, edges, visited, distances) do
     options =
-      map[pos]
+      edges[pos]
       |> Enum.reject(&MapSet.member?(visited, &1))
 
     current_distance = Map.fetch!(distances, pos)
@@ -116,7 +111,7 @@ defmodule HillClimber do
         throw({:done, distances})
 
       {next_node, _} ->
-        find_path(next_node, map, visited, distances)
+        find_path(next_node, edges, visited, distances)
     end
   end
 
