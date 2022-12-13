@@ -1,0 +1,77 @@
+# Day 13 - Distress Signal
+
+## Part 1
+
+```elixir
+packets =
+  Path.join(__DIR__, "input.txt")
+  |> File.stream!()
+  |> Stream.map(&String.trim/1)
+  |> Stream.reject(&(&1 == ""))
+  |> Stream.map(fn line ->
+    # yes, this is a bit dirty...
+    {packet, []} = Code.eval_string(line)
+    packet
+  end)
+  |> Enum.to_list()
+```
+
+```elixir
+defmodule PacketComparator do
+  def compare([x | lt], [x | rt]), do: compare(lt, rt)
+  def compare([], _), do: true
+  def compare(_, []), do: false
+
+  def compare([lh | lt], [rh | rt]) do
+    case compare_item(lh, rh) do
+      :continue -> compare(lt, rt)
+      valid -> valid
+    end
+  end
+
+  def compare_item(_, []), do: false
+  def compare_item([], _), do: true
+
+  def compare_item(left, right) when is_integer(left) and is_integer(right) do
+    cond do
+      left < right -> true
+      left == right -> :continue
+      true -> false
+    end
+  end
+
+  def compare_item(left, right) when is_integer(left) and is_list(right) do
+    compare([left], right)
+  end
+
+  def compare_item(left, right) when is_integer(right) and is_list(left) do
+    compare(left, [right])
+  end
+
+  def compare_item(left, right), do: compare(left, right)
+end
+```
+
+<!-- livebook:{"reevaluate_automatically":true} -->
+
+```elixir
+for {[left, right], index} <- packets |> Stream.chunk_every(2) |> Stream.with_index(1) do
+  {index, left, right, PacketComparator.compare(left, right)}
+end
+|> Enum.filter(&elem(&1, 3))
+|> Enum.map(&elem(&1, 0))
+|> Enum.sum()
+```
+
+```elixir
+a = [[2]]
+b = [[6]]
+
+sorted =
+  [a, b | packets]
+  |> Enum.sort(&PacketComparator.compare/2)
+
+(Enum.find_index(sorted, &(&1 == a)) + 1) * (Enum.find_index(sorted, &(&1 == b)) + 1)
+```
+
+## Part 2
