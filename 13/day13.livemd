@@ -73,5 +73,3 @@ sorted =
 
 (Enum.find_index(sorted, &(&1 == a)) + 1) * (Enum.find_index(sorted, &(&1 == b)) + 1)
 ```
-
-## Part 2
