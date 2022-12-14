@@ -1,0 +1,211 @@
+# Day 14 - Regolith Reservoir
+
+```elixir
+Mix.install([:kino_vega_lite])
+alias VegaLite, as: Vl
+```
+
+## Part 1
+
+```elixir
+parse_coordinate = fn xy ->
+  String.split(xy, ",", parts: 2)
+  |> Enum.map(&String.to_integer/1)
+  |> List.to_tuple()
+end
+
+lines =
+  Path.join(__DIR__, "input.txt")
+  |> File.stream!()
+  |> Stream.flat_map(fn line ->
+    line
+    |> String.trim()
+    |> String.split(" -> ")
+    |> Enum.map(parse_coordinate)
+    |> Enum.chunk_every(2, 1, :discard)
+    |> Enum.map(&List.to_tuple/1)
+  end)
+  |> Enum.to_list()
+```
+
+```elixir
+defmodule Point do
+  def scale({x, y}, s) do
+    {x * s, y * s}
+  end
+
+  def translate({x1, y1}, {x2, y2}) do
+    {x1 + x2, y1 + y2}
+  end
+
+  def difference(p1, p2) do
+    translate(p1, scale(p2, -1))
+  end
+
+  def normalize({x, y}) do
+    len = manhattan({x, y})
+    {round(x / len), round(y / len)}
+  end
+
+  def manhattan({x, y}) do
+    abs(x) + abs(y)
+  end
+
+  def min({x1, y1}, {x2, y2}) do
+    {Kernel.min(x1, x2), Kernel.min(y1, y2)}
+  end
+
+  def max({x1, y1}, {x2, y2}) do
+    {Kernel.max(x1, x2), Kernel.max(y1, y2)}
+  end
+end
+
+points_on_line = fn from, to ->
+  diff = Point.difference(from, to)
+  steps = Point.manhattan(diff)
+  direction = Point.normalize(diff)
+
+  for n <- 0..steps do
+    Point.translate(from, Point.scale(direction, -n))
+  end
+end
+
+points_on_line.({498, 4}, {498, 6})
+|> IO.inspect()
+
+filled_map =
+  for {{from, to}, index} <- Enum.with_index(lines), reduce: %{} do
+    map ->
+      diff = Point.difference(from, to)
+      steps = Point.manhattan(diff)
+      direction = Point.normalize(diff)
+
+      for point <- points_on_line.(from, to), reduce: map do
+        map ->
+          map
+          |> Map.put(point, {:rock, index})
+      end
+  end
+```
+
+```elixir
+# filled_map = %{{0,0} => :rock, {0, 1} => :rock, {0, 2} => :rock}
+```
+
+<!-- livebook:{"reevaluate_automatically":true} -->
+
+```elixir
+Vl.new(height: 500, width: 500)
+|> Vl.data_from_values(
+  for {{x, y}, {:rock, line}} <- filled_map do
+    %{"x" => x, "y" => y, "line" => line}
+  end
+)
+|> Vl.mark(:rect, tooltip: true)
+|> Vl.encode_field(:x, "x")
+|> Vl.encode_field(:y, "y")
+|> Vl.encode(:color, field: "line", type: :ordinal)
+```
+
+```elixir
+defmodule SandSimulator do
+  defstruct [:map, :bounds]
+  def new(map), do: %__MODULE__{map: map, bounds: bounds(map)}
+
+  defp bounds(map) do
+    for {pos, _} <- map, reduce: {{0, 0}, {0, 0}} do
+      {top_left, bottom_right} ->
+        {Point.min(pos, top_left), Point.max(bottom_right, pos)}
+    end
+  end
+
+  def add_floor(%__MODULE__{map: map, bounds: {_, {_, max_y}}} = sim, offset) do
+    floor_level = max_y + offset
+
+    updated_map =
+      for x <- -floor_level..floor_level, reduce: map do
+        map ->
+          map
+          |> Map.put({x + 500, floor_level}, :floor)
+      end
+
+    %{sim | map: updated_map, bounds: bounds(updated_map)}
+  end
+
+  def fill(%__MODULE__{bounds: {_, {_, max_y}}} = sim) do
+    iterations = max_y * max_y
+    fill(sim, iterations)
+  end
+
+  defp fill(%__MODULE__{} = sim, 0), do: sim
+
+  defp fill(%__MODULE__{} = sim, iterations) do
+    fill(simulate(sim), iterations - 1)
+  catch
+    {:done, map} ->
+      %{sim | map: map}
+  end
+
+  defp simulate(%__MODULE__{map: map, bounds: {_, {_, max_y}}} = sim) do
+    source = {500, 0}
+    updated_map = move_sand(map, source, max_y)
+    %{sim | map: updated_map}
+  end
+
+  @vectors [{0, 1}, {-1, 1}, {1, 1}]
+  def move_sand(map, {x, max_y}, max_y) do
+    throw({:done, Map.delete(map, {x, max_y})})
+  end
+
+  def move_sand(map, pos, max_y) do
+    next_pos =
+      Enum.map(@vectors, &Point.translate(pos, &1))
+      |> Enum.find(&is_nil(map[&1]))
+
+    case next_pos do
+      nil ->
+        map
+
+      next_pos ->
+        map
+        |> Map.delete(pos)
+        |> Map.put(next_pos, :sand)
+        |> move_sand(next_pos, max_y)
+    end
+  end
+end
+
+sand_map =
+  SandSimulator.new(filled_map)
+  |> SandSimulator.add_floor(2)
+  |> SandSimulator.fill()
+```
+
+<!-- livebook:{"reevaluate_automatically":true} -->
+
+```elixir
+Vl.new(height: 500, width: 500)
+|> Vl.data_from_values(
+  for {{x, y}, type} <- sand_map.map do
+    type =
+      case type do
+        {:rock, _} -> :rock
+        other -> other
+      end
+
+    %{"x" => x, "y" => y, "line" => type}
+  end
+)
+|> Vl.mark(:rect, tooltip: true)
+|> Vl.encode_field(:x, "x", axis: nil)
+|> Vl.encode_field(:y, "y", axis: nil)
+|> Vl.encode(:color, field: "line", type: :nominal)
+```
+
+<!-- livebook:{"reevaluate_automatically":true} -->
+
+```elixir
+(sand_map.map |> Enum.count(&match?({_, :sand}, &1))) + 1
+```
+
+## Part 2
