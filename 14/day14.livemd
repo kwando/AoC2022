@@ -42,13 +42,13 @@ defmodule Point do
     translate(p1, scale(p2, -1))
   end
 
-  def normalize({x, y}) do
-    len = manhattan({x, y})
+  def manhattan_normalize({x, y}) do
+    len = manhattan_distance({0, 0}, {x, y})
     {round(x / len), round(y / len)}
   end
 
-  def manhattan({x, y}) do
-    abs(x) + abs(y)
+  def manhattan_distance({x1, y1}, {x2, y2}) do
+    abs(x1 - x2) + abs(y1 - y2)
   end
 
   def min({x1, y1}, {x2, y2}) do
@@ -61,25 +61,18 @@ defmodule Point do
 end
 
 points_on_line = fn from, to ->
-  diff = Point.difference(from, to)
-  steps = Point.manhattan(diff)
-  direction = Point.normalize(diff)
+  diff = Point.difference(to, from)
+  steps = Point.manhattan_distance(from, to)
+  direction = Point.manhattan_normalize(diff)
 
   for n <- 0..steps do
-    Point.translate(from, Point.scale(direction, -n))
+    Point.translate(from, Point.scale(direction, n))
   end
 end
-
-points_on_line.({498, 4}, {498, 6})
-|> IO.inspect()
 
 filled_map =
   for {{from, to}, index} <- Enum.with_index(lines), reduce: %{} do
     map ->
-      diff = Point.difference(from, to)
-      steps = Point.manhattan(diff)
-      direction = Point.normalize(diff)
-
       for point <- points_on_line.(from, to), reduce: map do
         map ->
           map
@@ -88,14 +81,10 @@ filled_map =
   end
 ```
 
-```elixir
-# filled_map = %{{0,0} => :rock, {0, 1} => :rock, {0, 2} => :rock}
-```
-
 <!-- livebook:{"reevaluate_automatically":true} -->
 
 ```elixir
-Vl.new(height: 500, width: 500)
+Vl.new(height: 1000, width: 500)
 |> Vl.data_from_values(
   for {{x, y}, {:rock, line}} <- filled_map do
     %{"x" => x, "y" => y, "line" => line}
