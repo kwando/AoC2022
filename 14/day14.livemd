@@ -71,12 +71,12 @@ points_on_line = fn from, to ->
 end
 
 filled_map =
-  for {{from, to}, index} <- Enum.with_index(lines), reduce: %{} do
+  for {from, to} <- lines, reduce: %{} do
     map ->
       for point <- points_on_line.(from, to), reduce: map do
         map ->
           map
-          |> Map.put(point, {:rock, index})
+          |> Map.put(point, :rock)
       end
   end
 ```
@@ -86,14 +86,14 @@ filled_map =
 ```elixir
 Vl.new(height: 1000, width: 500)
 |> Vl.data_from_values(
-  for {{x, y}, {:rock, line}} <- filled_map do
-    %{"x" => x, "y" => y, "line" => line}
+  for {{x, y}, type} <- filled_map do
+    %{"x" => x, "y" => y, "type" => type}
   end
 )
 |> Vl.mark(:rect, tooltip: true)
-|> Vl.encode_field(:x, "x")
-|> Vl.encode_field(:y, "y")
-|> Vl.encode(:color, field: "line", type: :ordinal)
+|> Vl.encode_field(:x, "x", axis: nil)
+|> Vl.encode_field(:y, "y", axis: nil)
+|> Vl.encode(:color, field: "type")
 ```
 
 ```elixir
@@ -136,7 +136,7 @@ defmodule SandSimulator do
   end
 
   defp simulate(%__MODULE__{map: map, bounds: {_, {_, max_y}}} = sim) do
-    source = {500, 0}
+    source = {500, -1}
     updated_map = move_sand(map, source, max_y)
     %{sim | map: updated_map}
   end
@@ -164,9 +164,9 @@ defmodule SandSimulator do
   end
 end
 
+# |> SandSimulator.add_floor(2)
 sand_map =
   SandSimulator.new(filled_map)
-  |> SandSimulator.add_floor(2)
   |> SandSimulator.fill()
 ```
 
@@ -194,7 +194,40 @@ Vl.new(height: 500, width: 500)
 <!-- livebook:{"reevaluate_automatically":true} -->
 
 ```elixir
-(sand_map.map |> Enum.count(&match?({_, :sand}, &1))) + 1
+sand_map.map |> Enum.count(&match?({_, :sand}, &1))
 ```
 
 ## Part 2
+
+```elixir
+sand_map =
+  filled_map
+  |> SandSimulator.new()
+  |> SandSimulator.add_floor(2)
+  |> SandSimulator.fill()
+```
+
+```elixir
+Vl.new(height: 500, width: 500)
+|> Vl.data_from_values(
+  for {{x, y}, type} <- sand_map.map do
+    type =
+      case type do
+        {:rock, _} -> :rock
+        other -> other
+      end
+
+    %{"x" => x, "y" => y, "line" => type}
+  end
+)
+|> Vl.mark(:rect, tooltip: true)
+|> Vl.encode_field(:x, "x", axis: nil)
+|> Vl.encode_field(:y, "y", axis: nil)
+|> Vl.encode(:color, field: "line", type: :nominal)
+```
+
+<!-- livebook:{"reevaluate_automatically":true} -->
+
+```elixir
+sand_map.map |> Enum.count(&match?({_, :sand}, &1))
+```
