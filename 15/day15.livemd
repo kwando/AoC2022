@@ -22,6 +22,8 @@ input =
   |> Enum.to_list()
 ```
 
+<!-- livebook:{"reevaluate_automatically":true} -->
+
 ```elixir
 Vl.new(width: 400, height: 400)
 |> Vl.data_from_values(
@@ -45,29 +47,94 @@ defmodule Point do
     abs(x1 - x2) + abs(y1 - y2)
   end
 end
+
+defmodule RangeMerger do
+  def merge(ax..bx, cx..dx) when ax > cx do
+    merge(cx..dx, ax..bx)
+  end
+
+  def merge(ax..bx, cx..dx) when cx in ax..(bx + 1) do
+    {:ok, ax..max(bx, dx)}
+  end
+
+  def merge(_, _), do: :disjoint
+
+  def merge_all(ranges) do
+    _merge_all(Enum.sort(ranges))
+  end
+
+  defp _merge_all([]), do: []
+  defp _merge_all([r]), do: [r]
+
+  defp _merge_all([r1, r2 | rest]) do
+    case merge(r1, r2) do
+      {:ok, merged} ->
+        merge_all([merged | rest])
+
+      :disjoint ->
+        [r1 | merge_all([r2 | rest])]
+    end
+  end
+end
 ```
 
 ```elixir
-distance = Point.manhattan_distance({8, 7}, {2, 10})
-
-coverage_on_line = fn {x, y}, radius, line ->
+coverage_on_line = fn sensor, beacon, line ->
+  radius = Point.manhattan_distance(sensor, beacon)
+  {x, y} = sensor
   left = radius - abs(y - line)
 
   if left <= 0 do
-    []
+    :disjoint
   else
-    Enum.to_list((x - left)..(x + left))
+    (x - left)..(x + left)
   end
 end
 
 for {sensor, beacon} <- input do
-  distance = Point.manhattan_distance(sensor, beacon)
-  coverage_on_line.(sensor, distance, 2_000_000)
+  coverage_on_line.(sensor, beacon, 10)
 end
-|> Enum.flat_map(& &1)
-|> Enum.uniq()
-|> Enum.count()
+|> Enum.reject(&(&1 == :disjoint))
+|> RangeMerger.merge_all()
+|> Enum.map(&Enum.count/1)
+|> Enum.sum()
 |> then(&(&1 - 1))
+
+# 5299855
 ```
 
 ## Part 2
+
+```elixir
+range = 4_000_000
+# 3280000
+offset = 3_280_000
+
+{ranges, line} =
+  (0 + offset)..range
+  |> Stream.map(fn y ->
+    for {sensor, beacon} <- input, reduce: [] do
+      ranges ->
+        case coverage_on_line.(sensor, beacon, y) do
+          :disjoint -> ranges
+          range -> [range | ranges]
+        end
+    end
+  end)
+  |> Stream.map(&RangeMerger.merge_all/1)
+  |> Stream.with_index()
+  |> Stream.map(fn {ranges, index} ->
+    if rem(index, 10000) === 0 do
+      IO.puts(index)
+    end
+
+    {ranges, index}
+  end)
+  |> Enum.find(&(!match?({[_], _}, &1)))
+
+[_..a, b.._] = ranges
+x = a + 1
+y = offset + line
+
+x * 4_000_000 + y
+```
