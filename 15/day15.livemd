@@ -1,0 +1,73 @@
+# Day 15
+
+```elixir
+Mix.install([:kino_vega_lite])
+alias VegaLite, as: Vl
+```
+
+## Part 1
+
+```elixir
+input =
+  Path.join(__DIR__, "input.txt")
+  |> File.stream!()
+  |> Enum.map(fn line ->
+    Regex.run(~r/x=(-?\d+), y=(-?\d+): closest beacon is at x=(-?\d+), y=(-?\d+)/, line)
+    |> Enum.drop(1)
+    |> Enum.map(&String.to_integer/1)
+    |> Enum.chunk_every(2)
+    |> Enum.map(&List.to_tuple/1)
+    |> List.to_tuple()
+  end)
+  |> Enum.to_list()
+```
+
+```elixir
+Vl.new(width: 400, height: 400)
+|> Vl.data_from_values(
+  input
+  |> Enum.flat_map(fn {{sx, sy}, {bx, by}} ->
+    [
+      %{"x" => sx, "y" => sy, "type" => "sensor"},
+      %{"x" => bx, "y" => by, "type" => "beacon"}
+    ]
+  end)
+)
+|> Vl.mark(:circle)
+|> Vl.encode_field(:x, "x")
+|> Vl.encode_field(:y, "y")
+|> Vl.encode(:color, field: "type")
+```
+
+```elixir
+defmodule Point do
+  def manhattan_distance({x1, y1}, {x2, y2}) do
+    abs(x1 - x2) + abs(y1 - y2)
+  end
+end
+```
+
+```elixir
+distance = Point.manhattan_distance({8, 7}, {2, 10})
+
+coverage_on_line = fn {x, y}, radius, line ->
+  left = radius - abs(y - line)
+
+  if left <= 0 do
+    []
+  else
+    Enum.to_list((x - left)..(x + left))
+  end
+end
+
+for {sensor, beacon} <- input do
+  distance = Point.manhattan_distance(sensor, beacon)
+  coverage_on_line.(sensor, distance, 2_000_000)
+end
+|> Enum.flat_map(& &1)
+|> Enum.uniq()
+|> Enum.count()
+|> then(&(&1 - 1))
+```
+
+## Part 2
