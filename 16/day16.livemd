@@ -1,0 +1,182 @@
+# Day 16
+
+```elixir
+Mix.install([:kino])
+```
+
+## Part 1
+
+
+
+```elixir
+parse_line = fn line ->
+  result =
+    Regex.run(~r/Valve (\w+) has flow rate=(\d+); tunnels? leads? to valves? (.*)/, line)
+    |> Enum.drop(1)
+
+  [from, rate, to] = result
+  {from, String.to_integer(rate), String.split(to, ", ")}
+end
+
+input =
+  Path.join(__DIR__, "input.txt")
+  |> File.stream!()
+  |> Stream.map(parse_line)
+  |> Enum.to_list()
+```
+
+<!-- livebook:{"reevaluate_automatically":true} -->
+
+```elixir
+[
+  "graph LR;\n",
+  for {from, cost, edges} <- input, to <- edges do
+    "#{from}[#{from} #{cost}]<-->#{to};\n"
+  end
+]
+|> :erlang.iolist_to_binary()
+|> Kino.Mermaid.new()
+```
+
+<!-- livebook:{"reevaluate_automatically":true} -->
+
+```elixir
+defmodule GraphBuilder do
+  def build(input) do
+    graph = :digraph.new()
+
+    for {node, _, _} <- input do
+      :digraph.add_vertex(graph, node)
+    end
+
+    for {from, _, edges} <- input, to <- edges do
+      :digraph.add_edge(graph, from, to)
+    end
+
+    graph
+  end
+
+  def simplify_graph(input) do
+    graph = build(input)
+
+    closed_valves =
+      for {node, flow, _edges} <- input, flow > 0, into: %{} do
+        {node, flow}
+      end
+      |> Map.put("AA", 0)
+
+    edges =
+      for {a, _} <- closed_valves, {b, _} <- closed_valves, a != b, a < b, into: %{} do
+        {{a, b}, :digraph.get_short_path(graph, a, b) |> Enum.count()}
+      end
+
+    {closed_valves, edges}
+  end
+end
+
+{closed_valves, edges} = GraphBuilder.simplify_graph(input)
+
+[
+  "graph LR;",
+  for {{from, to}, cost} <- edges do
+    [from, "<-->|#{cost}|", to, ";\n"]
+  end
+]
+|> :erlang.iolist_to_binary()
+|> Kino.Mermaid.new()
+```
+
+```elixir
+defmodule FlowFinder2 do
+  def max_flow(nodes, edges) do
+    max_flow("AA", nodes, edges, 30, [])
+  end
+
+  def max_flow(_node, nodes, _edges, minutes, path) when map_size(nodes) == 0 or minutes <= 0 do
+    for {_, open_minutes, flow} <- path, reduce: 0 do
+      sum -> sum + open_minutes * flow
+    end
+  end
+
+  def max_flow(node, nodes, edges, minutes, path) when minutes > 0 do
+    for {next, flow} <- nodes, next != node, reduce: 0 do
+      pressure ->
+        travel_time = edges |> cost(node, next)
+        minutes_left = minutes - travel_time
+
+        max(
+          pressure,
+          max_flow(next, nodes |> Map.delete(next), edges, minutes_left, [
+            {next, minutes_left, flow} | path
+          ])
+        )
+    end
+  end
+
+  def cost(edges, a, b) when b < a, do: cost(edges, b, a)
+  def cost(edges, a, b), do: Map.fetch!(edges, {a, b})
+end
+
+# DD, BB, JJ, HH, EE, CC
+# 1931 is too low
+# 1947 is correct
+FlowFinder2.max_flow(closed_valves, edges)
+```
+
+```elixir
+defmodule FlowFinder do
+  def max_flow(input) do
+    input
+
+    graph = GraphBuilder.build(input)
+
+    node = "AA"
+    minutes_left = 30
+
+    closed_valves =
+      for {node, flow, _} <- input, flow > 0, reduce: Map.new() do
+        set -> Map.put(set, node, flow)
+      end
+      |> IO.inspect()
+
+    travel(node, graph, closed_valves, 30, 0)
+  end
+
+  def travel(node, graph, closed_valves, minutes_left, pressure)
+      when map_size(closed_valves) == 0,
+      do: pressure * minutes_left
+
+  def travel(node, graph, closed_valves, minutes_left, pressure) when minutes_left > 0 do
+    # IO.puts "current #{node} minutes:#{minutes_left} pressure: #{pressure}\n\t#{inspect(closed_valves)}"
+    # Process.sleep(500)
+    for {valve, flow} <- closed_valves, reduce: pressure do
+      pressure ->
+        path = :digraph.get_short_path(graph, node, valve)
+        len = Enum.count(path)
+        added_pressure = (minutes_left - len) * flow
+        {valve, len, flow, added_pressure}
+
+        max(
+          pressure,
+          travel(
+            valve,
+            graph,
+            closed_valves |> Map.delete(valve),
+            minutes_left - len,
+            added_pressure
+          )
+        )
+    end
+  end
+
+  def permutations([]), do: [[]]
+
+  def permutations(list),
+    do: for(elem <- list, rest <- permutations(list -- [elem]), do: [elem | rest])
+end
+
+1651
+FlowFinder.max_flow(input)
+```
+
+## Part 2
