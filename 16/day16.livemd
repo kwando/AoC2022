@@ -123,60 +123,60 @@ end
 FlowFinder2.max_flow(closed_valves, edges)
 ```
 
+## Part 2
+
 ```elixir
-defmodule FlowFinder do
-  def max_flow(input) do
-    input
+table = :ets.new(:dcache, [:set, :named_table])
+```
 
-    graph = GraphBuilder.build(input)
+```elixir
+:ets.delete_all_objects(table)
 
-    node = "AA"
-    minutes_left = 30
-
-    closed_valves =
-      for {node, flow, _} <- input, flow > 0, reduce: Map.new() do
-        set -> Map.put(set, node, flow)
-      end
-      |> IO.inspect()
-
-    travel(node, graph, closed_valves, 30, 0)
+defmodule FlowFinder3 do
+  def max_flow(nodes, edges, table) do
+    max_flow("AA", nodes, edges, 26, [], false)
   end
 
-  def travel(node, graph, closed_valves, minutes_left, pressure)
-      when map_size(closed_valves) == 0,
-      do: pressure * minutes_left
+  def max_flow(_node, nodes, edges, minutes, path, elephant?)
+      when map_size(nodes) == 0 or minutes <= 0 do
+    sum =
+      for {_, open_minutes, flow} <- path, reduce: 0 do
+        sum -> sum + open_minutes * flow
+      end
 
-  def travel(node, graph, closed_valves, minutes_left, pressure) when minutes_left > 0 do
-    # IO.puts "current #{node} minutes:#{minutes_left} pressure: #{pressure}\n\t#{inspect(closed_valves)}"
-    # Process.sleep(500)
-    for {valve, flow} <- closed_valves, reduce: pressure do
+    if elephant? do
+      sum
+    else
+      sum + max_flow("AA", nodes, edges, 26, [], true)
+    end
+  end
+
+  def max_flow(node, nodes, edges, minutes, path, elephant?) when minutes > 0 do
+    for {next, flow} <- nodes, next != node, reduce: 0 do
       pressure ->
-        path = :digraph.get_short_path(graph, node, valve)
-        len = Enum.count(path)
-        added_pressure = (minutes_left - len) * flow
-        {valve, len, flow, added_pressure}
+        travel_time = edges |> cost(node, next)
+        minutes_left = minutes - travel_time
 
         max(
           pressure,
-          travel(
-            valve,
-            graph,
-            closed_valves |> Map.delete(valve),
-            minutes_left - len,
-            added_pressure
+          max_flow(
+            next,
+            nodes |> Map.delete(next),
+            edges,
+            minutes_left,
+            [{next, minutes_left, flow} | path],
+            elephant?
           )
         )
     end
   end
 
-  def permutations([]), do: [[]]
-
-  def permutations(list),
-    do: for(elem <- list, rest <- permutations(list -- [elem]), do: [elem | rest])
+  def cost(edges, a, b) when b < a, do: cost(edges, b, a)
+  def cost(edges, a, b), do: Map.fetch!(edges, {a, b})
 end
 
-1651
-FlowFinder.max_flow(input)
-```
+FlowFinder3.max_flow(closed_valves, edges, table)
 
-## Part 2
+# 2284 is too low
+# 2556 is correct
+```
