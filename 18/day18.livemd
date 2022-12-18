@@ -1,0 +1,55 @@
+# Day 18 - Boiling Boulders
+
+## Part 1
+
+```elixir
+input =
+  Path.join(__DIR__, "input.txt")
+  |> File.stream!()
+  |> Stream.map(fn line ->
+    line
+    |> String.trim()
+    |> String.split(",")
+    |> Enum.map(&String.to_integer/1)
+    |> List.to_tuple()
+  end)
+```
+
+```elixir
+defmodule SideCounter do
+  def count_sides(cubes) do
+    cubes = MapSet.new(cubes)
+
+    for cube <- cubes, reduce: 0 do
+      sum -> sum + count_sides(cube, cubes)
+    end
+  end
+
+  @vectors [
+    {1, 0, 0},
+    {-1, 0, 0},
+    {0, 1, 0},
+    {0, -1, 0},
+    {0, 0, 1},
+    {0, 0, -1}
+  ]
+  defp count_sides(cube, cubes) do
+    for offset <- @vectors, reduce: 0 do
+      sum ->
+        if MapSet.member?(cubes, translate(cube, offset)) do
+          sum
+        else
+          sum + 1
+        end
+    end
+  end
+
+  defp translate({x, y, z}, {dx, dy, dz}) do
+    {x + dx, y + dy, z + dz}
+  end
+end
+
+SideCounter.count_sides(input)
+```
+
+## Part 2
